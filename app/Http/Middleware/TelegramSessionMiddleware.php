@@ -17,6 +17,28 @@ class TelegramController extends Controller
         $this->telegram = $telegram;
     }
 
+    public function setWebhook()
+    {
+        Log::info('Setting webhook');
+        try {
+            $url = config('services.telegram-bot-api.webhook_url');
+            Log::info('Webhook URL', ['url' => $url]);
+            if (!$url) {
+                throw new \Exception('Webhook URL is not set in configuration');
+            }
+            $response = $this->telegram->setWebhook(['url' => $url]);
+            Log::info('Webhook set response', ['response' => $response]);
+            return response()->json(['success' => $response]);
+        } catch (\Exception $e) {
+            Log::error('Error setting webhook: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
     public function handleWebhook(Request $request)
     {
         Log::info('Webhook received', ['payload' => $request->all()]);
@@ -62,17 +84,12 @@ class TelegramController extends Controller
             case 'creating_event':
                 return $this->finishEventCreation($chatId, $text);
             default:
-                if (in_array($text, ['Создать задачу', 'Создать событие', 'Отмена'])) {
-                    return $this->processCommand($chatId, $text);
-                } else {
-                    return $this->handleUnknownCommand($chatId, $text);
-                }
+                return $this->processCommand($chatId, $text);
         }
     }
 
     private function processCommand($chatId, $text)
     {
-        Log::info("Processing command for chat ID: $chatId, Text: $text");
         switch ($text) {
             case '/start':
                 return $this->getStartMessage();
@@ -107,60 +124,42 @@ class TelegramController extends Controller
 
     private function initiateTaskCreation($chatId)
     {
-        Log::info("Initiating task creation for chat ID: $chatId");
         Session::put("state_{$chatId}", 'creating_task');
-        Session::save();
-        Log::info("State after initiating task creation: " . Session::get("state_{$chatId}"));
         $text = "Введите название новой задачи:";
         return ['text' => $text, 'keyboard' => $this->getCancelKeyboard()];
     }
 
     private function finishTaskCreation($chatId, $taskName)
     {
-        Log::info("Finishing task creation for chat ID: $chatId, Task name: $taskName");
         Session::put("state_{$chatId}", 'main');
-        Session::save();
-        Log::info("State after finishing task creation: " . Session::get("state_{$chatId}"));
         $text = "Задача \"$taskName\" успешно создана!";
         return ['text' => $text, 'keyboard' => $this->getMainKeyboard()];
     }
 
     private function createEvent($chatId)
     {
-        Log::info("Initiating event creation for chat ID: $chatId");
         Session::put("state_{$chatId}", 'creating_event');
-        Session::save();
-        Log::info("State after initiating event creation: " . Session::get("state_{$chatId}"));
         $text = "Введите название нового события:";
         return ['text' => $text, 'keyboard' => $this->getCancelKeyboard()];
     }
 
     private function finishEventCreation($chatId, $eventName)
     {
-        Log::info("Finishing event creation for chat ID: $chatId, Event name: $eventName");
         Session::put("state_{$chatId}", 'main');
-        Session::save();
-        Log::info("State after finishing event creation: " . Session::get("state_{$chatId}"));
         $text = "Событие \"$eventName\" успешно создано!";
         return ['text' => $text, 'keyboard' => $this->getMainKeyboard()];
     }
 
     private function cancelCreation($chatId)
     {
-        Log::info("Cancelling creation for chat ID: $chatId");
         Session::put("state_{$chatId}", 'main');
-        Session::save();
-        Log::info("State after cancelling creation: " . Session::get("state_{$chatId}"));
         $text = "Создание отменено. Выберите действие:";
         return ['text' => $text, 'keyboard' => $this->getMainKeyboard()];
     }
 
     private function goBack($chatId)
     {
-        Log::info("Going back for chat ID: $chatId");
         Session::put("state_{$chatId}", 'main');
-        Session::save();
-        Log::info("State after going back: " . Session::get("state_{$chatId}"));
         $text = "Выберите необходимый пункт меню:";
         return ['text' => $text, 'keyboard' => $this->getMainKeyboard()];
     }
@@ -215,7 +214,6 @@ class TelegramController extends Controller
 
     private function handleUnknownCommand($chatId, $text)
     {
-        Log::info("Handling unknown command for chat ID: $chatId, Text: $text");
         $replyText = "Извините, я не понимаю эту команду. Выберите действие из меню.";
         return ['text' => $replyText, 'keyboard' => $this->getMainKeyboard()];
     }

@@ -9,7 +9,8 @@ Route::get('/api/telegram/set-webhook', [TelegramController::class, 'setWebhook'
 Route::get('/', function () {
     return 'Всё работает';
 });
-
+Route::post('/telegram/webhook', [TelegramController::class, 'handleWebhook'])
+    ->middleware('telegram.session');
 Route::get('/debug', function () {
     return [
         'php_version' => PHP_VERSION,
